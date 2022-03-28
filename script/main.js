@@ -78,9 +78,11 @@ const getTopYInColumn = (numberOfColumn, top = false) => {
     (el) => el.x === numberOfColumn
   );
   const arrYCoordElementFromColumn = [];
+
   elFromColumn.forEach((el) => {
     arrYCoordElementFromColumn.push(el.y);
   });
+
   return top
     ? Math.max(...arrYCoordElementFromColumn)
     : Math.min(...arrYCoordElementFromColumn);
@@ -88,7 +90,6 @@ const getTopYInColumn = (numberOfColumn, top = false) => {
 
 const animateMoveForNewCircles = (arrOfCoordinates) => {
   let iterator = 0;
-
   setInterval(() => {
     if (iterator <= 75) {
       arrOfCoordinates.forEach((circle, index) => {
@@ -101,17 +102,86 @@ const animateMoveForNewCircles = (arrOfCoordinates) => {
   }, 9);
 };
 
-const movingCirclesAfterDestroy = () => {
+const getNumbersColumns = (elements) => {
   const numberOfColumns = [];
-  const circlesForMovedDown = [];
-  let newCircles = [];
-
-  // get number column and lines
-  arrOfCoordinatesDestroyedCircles.forEach((objCoord) => {
+  elements.forEach((objCoord) => {
     if (numberOfColumns.findIndex((el) => el === objCoord.x) === -1) {
       numberOfColumns.push(objCoord.x);
     }
   });
+  return numberOfColumns;
+};
+
+const animateMoveForOldAndNewCircles = (circlesArray, coordinatsArray) => {
+  const numberOfColumn = getNumbersColumns(coordinatsArray);
+
+  numberOfColumn.forEach((columnNumber) => {
+    const allDeletedPositionInColumn = arrOfCoordinatesDestroyedCircles.filter(
+      (el) => el.x === columnNumber
+    );
+    const elementForMovies = circlesArray.filter((circle) =>
+      circle.name.includes(`Circle:${columnNumber}`)
+    );
+    allDeletedPositionInColumn.sort((a, b) => a.y - b.y);
+    elementForMovies.sort(
+      (a, b) => a.name.split(":")[2] - b.name.split(":")[2]
+    );
+
+    if (allDeletedPositionInColumn.length === elementForMovies.length) {
+      elementForMovies.forEach((circle, index) => {
+        let iterator = 0;
+        const oldY = Number(circle.name.split(":")[2]);
+        setInterval(() => {
+          if (iterator < allDeletedPositionInColumn[index].y - oldY) {
+            const newY = oldY + iterator;
+            circle.position.y = iterator;
+            circle.name = `Circle:${allDeletedPositionInColumn[index].x}:${newY}`;
+          }
+          iterator++;
+        }, 3);
+      });
+    } else {
+      if (elementForMovies.length < allDeletedPositionInColumn.length) {
+        const quantityNeededPlaces = elementForMovies.length;
+        const bottomPositions = allDeletedPositionInColumn.slice(
+          -quantityNeededPlaces
+        );
+        elementForMovies.forEach((circle, index) => {
+          let iterator = 0;
+          const oldY = Number(circle.name.split(":")[2]);
+          setInterval(() => {
+            if (iterator < bottomPositions[index].y - oldY) {
+              const newY = oldY + iterator;
+              circle.position.y = iterator;
+              circle.name = `Circle:${bottomPositions[index].x}:${newY}`;
+            }
+            iterator++;
+          }, 3);
+        });
+      } else {
+        const stepToMove = allDeletedPositionInColumn.length * STEP_GRID;
+        elementForMovies.forEach((circle) => {
+          let iterator = 0;
+          const oldY = Number(circle.name.split(":")[2]);
+          setInterval(() => {
+            if (iterator <= stepToMove) {
+              const newY = oldY + iterator;
+              circle.position.y = iterator;
+              circle.name = `Circle:${columnNumber}:${newY}`;
+            }
+            iterator++;
+          }, 6);
+        });
+      }
+    }
+  });
+};
+
+const movingCirclesAfterDestroy = () => {
+  const numberOfColumns = getNumbersColumns(arrOfCoordinatesDestroyedCircles);
+  const circlesForMovedDown = [];
+  let newCircles = [];
+  let newCirclesWhenNotEnoughtElements = [];
 
   numberOfColumns.forEach((columnNumber) => {
     const minY = getTopYInColumn(columnNumber);
@@ -130,6 +200,15 @@ const movingCirclesAfterDestroy = () => {
       }
     } else {
       const quantityCircles = Math.trunc(minY / STEP_GRID) - 1;
+      const quantityNewCircles = (maxY - minY) / STEP_GRID + 1;
+
+      for (let i = 0; i < quantityNewCircles; i++) {
+        newCirclesWhenNotEnoughtElements.push({
+          x: columnNumber,
+          y: START_Y_LINE + STEP_GRID * i,
+        });
+      }
+
       for (let i = 1; i <= quantityCircles; i++) {
         circlesForMovedDown.push({
           x: columnNumber,
@@ -139,36 +218,46 @@ const movingCirclesAfterDestroy = () => {
     }
 
     // if don't enought elements
-    if ((maxY - minY) / STEP_GRID >= newCircles.length) {
-      console.log("не хватает элементов", circlesForMovedDown);
-      const notEnought =
-        (maxY - minY) / STEP_GRID + 1 - circlesForMovedDown.length;
-      console.log(notEnought);
-      for (let i = 0; i < notEnought; i++) {
+    if ((maxY - minY) / STEP_GRID > newCircles.length) {
+      const notEnoughtQuantity = Math.abs(
+        (maxY - minY) / STEP_GRID + 1 - circlesForMovedDown.length
+      );
+      for (let i = 1; i <= notEnoughtQuantity; i++) {
         newCircles.push({
           x: columnNumber,
-          y: minY - STEP_GRID * i,
+          y: START_Y_LINE - STEP_GRID * i,
         });
       }
     }
   });
 
-  console.log(newCircles);
-  // // drawing new Circles
-  // if (newCircles.length > 0) {
-  //   newCircles.forEach((coordObj) => {
-  //     generateCircleComponents(coordObj.x, coordObj.y - STEP_GRID, gameScene);
-  //   });
-  // }
-  // //find new circles in scene
-  // const newCirclesFromScreen = [];
-  // newCircles.forEach((el) => {
-  //   newCirclesFromScreen.push(
-  //     gameScene.getChildByName(`Circle:${el.x}:${el.y - STEP_GRID}`)
-  //   );
-  // });
-  // //animate new circles
-  // animateMoveForNewCircles(newCirclesFromScreen);
+  // drawing new Circles if not circles for move down
+  if (newCircles.length > 0 && circlesForMovedDown.length === 0) {
+    newCircles.forEach((coordObj) => {
+      generateCircleComponents(coordObj.x, coordObj.y - STEP_GRID, gameScene);
+    });
+    //find new circles in scene
+    const newCirclesFromScreen = [];
+    newCircles.forEach((el) => {
+      newCirclesFromScreen.push(
+        gameScene.getChildByName(`Circle:${el.x}:${el.y - STEP_GRID}`)
+      );
+    });
+    animateMoveForNewCircles(newCirclesFromScreen);
+  } else {
+    const elFromScreenToMoveDown = [];
+    circlesForMovedDown.forEach((coordObj) => {
+      elFromScreenToMoveDown.push(
+        gameScene.getChildByName(`Circle:${coordObj.x}:${coordObj.y}`)
+      );
+    });
+    animateMoveForOldAndNewCircles(elFromScreenToMoveDown, circlesForMovedDown);
+
+    const newCirclesWhenNotEnought = [];
+    newCirclesWhenNotEnoughtElements.forEach((coordObj) => {
+      generateCircleComponents(coordObj.x, coordObj.y, gameScene);
+    });
+  }
 };
 
 const onClickHandlerToCircle = (event) => {
@@ -195,66 +284,76 @@ const onMouseOverHandler = (event) => {
       addToListsDeletedElements(event);
     } else {
       if (startColor === currentColor) {
-        createLine(currentCoordinate, getCoordinateFromCircleObj(event));
-        addToListsDeletedElements(event);
-        currentCoordinate = getCoordinateFromCircleObj(event);
+        const deltaX =
+          currentCoordinate.x - getCoordinateFromCircleObj(event).x;
+        const deltaY =
+          currentCoordinate.y - getCoordinateFromCircleObj(event).y;
+        if (deltaX === 0 || deltaY === 0) {
+          createLine(currentCoordinate, getCoordinateFromCircleObj(event));
+          addToListsDeletedElements(event);
+          currentCoordinate = getCoordinateFromCircleObj(event);
+        }
       }
     }
   }
 };
 
 const onMouseUpHandler = (event) => {
-  const currentCoord = getCoordinateFromCircleObj(event);
-  const deltaX = Math.abs(startCoordinate.x - currentCoord.x);
-  const deltaY = Math.abs(startCoordinate.y - currentCoord.y);
+  if (arrOfCoordinatesDestroyedCircles.length > 1) {
+    const currentCoord = getCoordinateFromCircleObj(event);
+    const deltaX = Math.abs(startCoordinate.x - currentCoord.x);
+    const deltaY = Math.abs(startCoordinate.y - currentCoord.y);
 
-  deltaX !== 0
-    ? (quantityOffCircle = quantityOffCircle + (deltaX / STEP_GRID + 1))
-    : (quantityOffCircle = quantityOffCircle + (deltaY / STEP_GRID + 1));
+    deltaX !== 0
+      ? (quantityOffCircle = quantityOffCircle + (deltaX / STEP_GRID + 1))
+      : (quantityOffCircle = quantityOffCircle + (deltaY / STEP_GRID + 1));
 
-  scoreValue.text = quantityOffCircle;
+    scoreValue.text = quantityOffCircle;
 
-  arrForDestroy.forEach((itm) => {
-    // destroy selected circles
-    itm.destroy();
-  });
-
-  for (let i = 0; i < counterForName; i++) {
-    // find and destroy all lines between circles
-    gameScene.getChildByName(`Line${i}`).destroy();
-  }
-
-  startCoordinate.x = null;
-  startCoordinate.y = null;
-  currentCoordinate.x = null;
-  currentCoordinate.y = null;
-  arrForDestroy = [];
-  arrLineNames = [];
-  counterForName = 0;
-
-  const isDeletedCirclesFromTopLine = arrOfCoordinatesDestroyedCircles.every(
-    (el) => el.y === START_Y_LINE
-  );
-
-  if (isDeletedCirclesFromTopLine) {
-    // draw new Circles
-    arrOfCoordinatesDestroyedCircles.forEach((coordObj) => {
-      generateCircleComponents(coordObj.x, coordObj.y - STEP_GRID, gameScene);
+    arrForDestroy.forEach((itm) => {
+      // destroy selected circles
+      itm.destroy();
     });
 
-    const newCircles = [];
-    arrOfCoordinatesDestroyedCircles.forEach((coordObj) => {
-      newCircles.push(
-        gameScene.getChildByName(
-          `Circle:${coordObj.x}:${coordObj.y - STEP_GRID}`
-        )
-      );
-    });
+    for (let i = 0; i < counterForName; i++) {
+      // find and destroy all lines between circles
+      gameScene.getChildByName(`Line${i}`).destroy();
+    }
 
-    // animation of new circles
-    animateMoveForNewCircles(newCircles);
+    startCoordinate.x = null;
+    startCoordinate.y = null;
+    currentCoordinate.x = null;
+    currentCoordinate.y = null;
+    arrForDestroy = [];
+    arrLineNames = [];
+    counterForName = 0;
+
+    const isDeletedCirclesFromTopLine = arrOfCoordinatesDestroyedCircles.every(
+      (el) => el.y === START_Y_LINE
+    );
+
+    if (isDeletedCirclesFromTopLine) {
+      // draw new Circles
+      arrOfCoordinatesDestroyedCircles.forEach((coordObj) => {
+        generateCircleComponents(coordObj.x, coordObj.y - STEP_GRID, gameScene);
+      });
+
+      const newCircles = [];
+      arrOfCoordinatesDestroyedCircles.forEach((coordObj) => {
+        newCircles.push(
+          gameScene.getChildByName(
+            `Circle:${coordObj.x}:${coordObj.y - STEP_GRID}`
+          )
+        );
+      });
+
+      animateMoveForNewCircles(newCircles);
+    } else {
+      movingCirclesAfterDestroy();
+    }
   } else {
-    movingCirclesAfterDestroy();
+    startCoordinate = null;
+    startColor = null;
   }
 };
 
